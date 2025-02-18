@@ -53,3 +53,24 @@
 - 天灾卡：抽到时进入天灾区，永久生效直到游戏结束
 - 事件卡：立即生效的一次性效果
 - 交易卡：执行股票交易操作
+
+## 本地部署
+
+### 环境要求
+
+- Node.js >= 14.0.0
+- npm >= 6.0.0
+
+### 安装依赖
+
+```bash
+git clone https://github.com/yourusername/IntoTheWaves.git
+cd IntoTheWaves
+npm install
+```
+
+### 运行游戏
+
+```bash
+node IntoTheWaves.js
+```
