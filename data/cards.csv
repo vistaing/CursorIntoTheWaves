@@ -1,0 +1,6 @@
+name,type,effect,stock,power,description,tags
+行业利好卡,事件,industry_boost,,0.2,指定行业上涨20%,市场
+行业利好卡,事件,industry_boost,,0.2,指定行业上涨20%,市场
+行业利好卡,事件,industry_boost,,0.2,指定行业上涨20%,市场
+疫情爆发,天灾,pandemic,,0.3,公共卫生,5
+太阳风暴,天灾,solar_storm,,0.7,太空,2
