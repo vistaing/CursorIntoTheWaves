@@ -63,6 +63,184 @@
 - 事件卡：立即生效的一次性效果
 - 交易卡：执行股票交易操作
 
+## 游戏核心的运行流程
+
+### 游戏初始化阶段
+
+#### 股票系统初始化（IntoTheWaves.js）
+
+```javascript
+initializeAllStocks() {
+  return [
+    new Stock("英伟达", ["半导体", "消费电子", "成长", "北美洲"]),
+    // ...其他股票
+  ];
+}
+```
+
+- 创建15只预设股票，每只股票带有行业标签
+- 生成初始价格（10-200之间的随机数）
+- 根据标签设置初始波动率（成长股1.5倍，初创公司2倍等）
+
+
+#### 卡牌系统初始化（CardLoader.js + cards.csv）
+
+```javascript
+async loadCardsFromCSV('./data/cards.csv') // 加载基础卡牌
+```
+
+- 从CSV读取卡牌配置（行业利好卡、天灾卡等）
+- 自动生成股票交易卡（每个活跃股票生成5张交易卡）
+
+#### 玩家初始化（Player.js）
+
+```javascript
+constructor(name) {
+  this.cash = 50000; // 初始资金
+  this.stocks = {};  // 股票持仓
+}
+```
+
+
+### 核心游戏循环
+
+#### 抽牌阶段
+
+```javascript
+players.forEach(player => player.drawCard(this.deck));
+```
+- 每个玩家抽1张牌
+- 天灾卡会自动进入灾难区（不会加入手牌）
+
+#### 玩家行动阶段
+
+```javascript
+async playerTurn(player) {
+  const card = player.playCard(index);
+  await card.applyEffect(player, game);
+}
+```
+
+- 交易卡示例流程：
+  ```javascript
+  // 在 TradeCard 类中
+  async applyEffect() {
+    const action = await game.askForInput("B/S"); // 买卖选择
+    if(action === 'B') player.buyStock(...);
+    if(action === 'S') player.sellStock(...);
+  }
+  ```
+
+#### 市场结算阶段
+
+```javascript
+updateStockPrices() {
+  stock.updatePrice(); // 调用股票的价格更新算法
+}
+```
+
+- 使用截断正态分布生成价格波动
+- 波动幅度受股票标签影响（初创公司波动更大）
+
+#### 资产统计阶段
+
+```javascript
+displayPlayerAssets() {
+  // 计算本回合盈亏和总盈亏
+}
+```
+
+### 核心子系统交互
+
+#### 卡牌效果系统
+
+```javascript
+// CardFactory.js 中的效果分发
+switch(config.effect) {
+  case 'industry_boost': // 行业利好
+    targetIndustry.stocks.forEach(boostPrice);
+  case 'pandemic':       // 疫情爆发
+    medicalStocks.crash();
+}
+```
+
+#### 股票交易系统（Player.js）
+
+- 多空混合持仓处理：
+
+```javascript
+buyStock() {
+  // 处理空转多的情况
+  if(currentQty < 0) {
+    const coverQty = Math.min(quantity, -currentQty);
+    // ...平仓计算
+  }
+}
+```
+
+#### 风险控制系统
+
+- 卖空限制警告：
+
+```javascript
+sellStock() {
+  console.log("警告：卖空操作可能导致无限亏损！");
+}
+```
+
+### 数据流动示例
+
+#### 使用行业利好卡：
+
+```
+玩家选择行业 -> 从cards.csv读取0.2的power值 -> 遍历该行业股票 -> 股价上涨20%
+```
+
+#### 股票交易过程：
+
+```
+交易卡应用 -> 调用Player的buyStock/sellStock -> 更新stockCosts成本记录 -> 影响calculateNetWorth资产计算
+```
+
+## 关键算法解析
+
+#### 股票波动算法（Stock.js）
+
+```javascript
+truncatedNormal() {
+  // 生成正态分布随机数
+  let num = Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v); 
+  num *= this.volatility; // 应用波动率
+  return Math.max(-1, Math.min(1, num)); // 限制在±100%
+}
+```
+
+#### 成本价计算（Player.js）
+```javascript
+getStockCost() {
+  // 做空时股数为负，计算绝对值
+  return totalQty > 0 ? totalCost / totalQty : 0;
+}
+```
+
+### 扩展机制
+
+#### 天灾卡系统（DisasterCard.js）
+
+- 特殊抽卡规则：抽到天灾卡会自动进入灾难区
+- 全局影响效果：如太阳风暴影响太空类股票
+
+#### 动态波动率（Stock.js）
+
+```javascript
+adjustVolatilityByTags() {
+  // 根据标签实时调整波动率
+  if(tags.includes("成长")) volatilityModifier *= 1.5;
+}
+```
+
+这个系统通过卡牌驱动+股票模拟的核心机制，结合精心设计的数值系统和风险控制，实现了策略性与随机性的平衡。玩家需要兼顾短期操作（利用交易卡套利）和长期布局（使用事件卡影响市场趋势）。
+
 ## 本地部署
 
 ### 环境要求
