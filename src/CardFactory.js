@@ -108,9 +108,7 @@ class TradeCard extends BaseCard {
 }
 
 class EventCard extends BaseCard {
-  async applyEffect(player, game) {
-    // 实现事件卡效果...
-  }
+  // 事件卡的效果实现需要根据具体需求来实现
 }
 
 class DisasterCard extends BaseCard {

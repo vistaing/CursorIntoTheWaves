@@ -16,7 +16,6 @@ class CardLoader {
       fs.createReadStream(filePath)
         .pipe(csv())
         .on('data', (row) => {
-          console.log('当前解析行:', row); // 添加调试输出
           // 转换CSV行数据为卡牌配置对象
           const card = {
             name: row.name,        // 卡牌名称

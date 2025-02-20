@@ -137,11 +137,4 @@ class Player {
   }
 }
 
-module.exports = Player;
-
-// 测试代码
-const p = new Player("测试");
-console.log('方法检查:', {
-  sellStock: typeof p.sellStock,
-  buyStock: typeof p.buyStock
-}); 
+module.exports = Player; 
