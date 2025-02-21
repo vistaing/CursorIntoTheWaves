@@ -20,6 +20,13 @@ const formatNumber = (num, decimals = 0) => {
            .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+const VOLATILITY_RANGES = {
+  '初创': { min: 0.4, max: 0.6 },  // 40%-60%
+  '成长': { min: 0.3, max: 0.4 },  // 30%-40%
+  '成熟': { min: 0.2, max: 0.3 },  // 20%-30%
+  '衰退': { min: 0.5, max: 0.7 }   // 50%-70% (衰退期波动可能更大)
+};
+
 class Card {
   constructor(name) {
     this.name = name;
