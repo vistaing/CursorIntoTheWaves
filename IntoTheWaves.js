@@ -5,13 +5,17 @@ const CardLoader = require('./src/CardLoader');
 const { createCardInstance } = require('./src/CardFactory');
 const Player = require('./Player');  // 添加导入语句
 const Table = require('cli-table3');
+const inquirer = require('inquirer'); // 添加inquirer依赖
 
 // 在类顶部添加颜色常量
 const COLORS = {
   Reset: "\x1b[0m",
   Green: "\x1b[32m",
   Red: "\x1b[31m",
-  Cyan: "\x1b[36m"
+  Cyan: "\x1b[36m",
+  Yellow: "\x1b[33m",
+  Blue: "\x1b[34m",
+  Magenta: "\x1b[35m"
 };
 
 // 在颜色常量后添加格式化函数
@@ -328,22 +332,119 @@ class IntoTheWaves {
     });
   }
 
-  async playerTurn(player) {
-    console.log(`\n${player.name}的回合`);
-    console.log("当前手牌：");
-    player.hand.forEach((card, index) => {
-      console.log(`${index + 1}. ${card.name}`);
-    });
+  /**
+   * 使用inquirer实现交互式选择
+   * @param {string} message - 提示信息
+   * @param {Array} choices - 选项数组
+   * @returns {Promise<string>} 用户选择的选项
+   */
+  async askForSelection(message, choices) {
+    const result = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'selected',
+        message: message,
+        choices: choices,
+        pageSize: 10 // 一次显示的选项数量
+      }
+    ]);
+    return result.selected;
+  }
 
-    const cardIndex = parseInt(await this.askForInput('请选择要打出的卡（输入序号）：')) - 1;
-    if (cardIndex < 0 || cardIndex >= player.hand.length) {
-      console.log(`${player.name} 选择了无效的牌`);
+  /**
+   * 使用inquirer实现数字输入
+   * @param {string} message - 提示信息
+   * @param {number} defaultValue - 默认值
+   * @returns {Promise<number>} 用户输入的数字
+   */
+  async askForNumber(message, defaultValue = 0) {
+    const result = await inquirer.prompt([
+      {
+        type: 'number',
+        name: 'value',
+        message: message,
+        default: defaultValue,
+        validate: (input) => {
+          if (isNaN(input)) {
+            return '请输入有效的数字';
+          }
+          return true;
+        }
+      }
+    ]);
+    return result.value;
+  }
+
+  /**
+   * 使用inquirer实现确认选择
+   * @param {string} message - 提示信息
+   * @returns {Promise<boolean>} 用户选择结果
+   */
+  async askForConfirmation(message) {
+    const result = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirmed',
+        message: message,
+        default: false
+      }
+    ]);
+    return result.confirmed;
+  }
+
+  async playerTurn(player) {
+    console.log(`\n${COLORS.Cyan}${player.name}的回合${COLORS.Reset}`);
+    
+    if (player.hand.length === 0) {
+      console.log(`${player.name} 没有手牌，跳过出牌阶段`);
       return;
     }
-
-    const playedCard = player.playCard(cardIndex);
-    console.log(`${player.name} 打出了 ${playedCard.name}`);
-    await playedCard.applyEffect(player, this);
+    
+    // 使用循环允许玩家在取消操作后重新选择手牌
+    let cardPlayed = false;
+    
+    while (!cardPlayed) {
+      // 准备手牌选项，添加颜色和描述信息
+      const cardChoices = player.hand.map((card, index) => {
+        // 根据卡牌类型设置不同颜色
+        let cardColor = COLORS.Reset;
+        if (card.type === '交易') cardColor = COLORS.Green;
+        else if (card.type === '事件') cardColor = COLORS.Yellow;
+        else if (card.type === '天灾') cardColor = COLORS.Red;
+        
+        // 构建选项显示文本
+        const displayText = `${cardColor}${card.name}${COLORS.Reset} - ${card.description || '无描述'}`;
+        
+        return {
+          name: displayText,
+          value: index,
+          short: card.name
+        };
+      });
+      
+      // 如果没有手牌，退出循环
+      if (cardChoices.length === 0) {
+        console.log(`${player.name} 没有手牌，跳过出牌阶段`);
+        return;
+      }
+      
+      // 使用交互式选择
+      const cardIndex = await this.askForSelection(`${player.name}，请选择要打出的卡牌:`, cardChoices);
+      
+      // 打出选中的卡牌
+      const playedCard = player.playCard(cardIndex);
+      console.log(`${player.name} 打出了 ${COLORS.Cyan}${playedCard.name}${COLORS.Reset}`);
+      
+      // 应用卡牌效果，并检查是否需要重新选择
+      const effectCompleted = await playedCard.applyEffect(player, this);
+      
+      // 如果卡牌效果完成，则结束循环
+      if (effectCompleted !== false) {
+        cardPlayed = true;
+      } else {
+        console.log(`${COLORS.Yellow}返回手牌选择阶段${COLORS.Reset}`);
+      }
+    }
   }
 
   /**
@@ -498,6 +599,15 @@ class IntoTheWaves {
 // 修改游戏启动方式
 async function runGame() {
   try {
+    // 检查是否已安装inquirer
+    try {
+      require.resolve('inquirer');
+    } catch (e) {
+      console.log('正在安装必要的依赖...');
+      console.log('请运行: npm install inquirer');
+      process.exit(1);
+    }
+    
     const game = await new IntoTheWaves().initialize();
     await game.play();
   } catch (error) {

@@ -1,6 +1,17 @@
 {
+  "name": "into-the-waves",
+  "version": "1.0.0",
+  "description": "股票投资卡牌游戏",
+  "main": "IntoTheWaves.js",
+  "scripts": {
+    "start": "node IntoTheWaves.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "dependencies": {
-    "cli-table3": "^0.6.5",
-    "csv-parser": "^3.2.0"
-  }
+    "cli-table3": "^0.6.3",
+    "csv-parser": "^3.0.0",
+    "inquirer": "^8.2.5"
+  },
+  "author": "",
+  "license": "ISC"
 }

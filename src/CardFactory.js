@@ -35,11 +35,11 @@ class BaseCard {
    */
   constructor(config) {
     this.name = config.name;
-    this.type = config.type;
+    this.type = config.type || '未知';
     this.effect = config.effect;
     this.power = config.power;
-    this.description = config.description;
-    this.tags = config.tags;
+    this.description = config.description || '无描述';
+    this.tags = config.tags || [];
     this.stockName = config.stockName || '';
   }
 
@@ -52,6 +52,14 @@ class BaseCard {
   async applyEffect(player, game) {
     throw new Error('必须在子类中实现 applyEffect 方法');
   }
+  
+  /**
+   * 获取卡牌详细信息（用于显示）
+   * @returns {string} 卡牌详细信息
+   */
+  getDetails() {
+    return `${this.name} [${this.type}] - ${this.description}`;
+  }
 }
 
 /**
@@ -62,53 +70,92 @@ class TradeCard extends BaseCard {
    * 执行股票交易
    * @param {Player} player - 当前玩家
    * @param {IntoTheWaves} game - 游戏实例
+   * @returns {boolean} 是否完成交易，false表示需要重新选择手牌
    */
   async applyEffect(player, game) {
     if (!this.stockName) {
       console.error('交易卡配置错误：缺少股票名称');
-      return;
+      return true; // 错误情况下仍然视为完成
     }
 
     console.log('当前股票信息:', { stockName: this.stockName, currentPrice: game.stockPrices[this.stockName] });
 
-    let action = '';
-    try {
-      action = (await game.askForInput(
-        `当前${this.stockName}价格 ${game.stockPrices[this.stockName]}，请选择操作 (B/S): `
-      ) || '').toUpperCase().trim();
-      
-      if (!['B', 'S'].includes(action)) {
-        console.log('无效操作，请输入 B 或 S');
-        return;
-      }
-    } catch (error) {
-      console.error('输入处理出错:', error);
-      return;
+    // 使用新的交互方式选择操作
+    const action = await game.askForSelection(
+      `当前${this.stockName}价格 ${game.stockPrices[this.stockName]}，请选择操作:`,
+      [
+        { name: '买入 (B)', value: 'B' },
+        { name: '卖出 (S)', value: 'S' },
+        { name: '取消', value: 'C' }
+      ]
+    );
+    
+    if (action === 'C') {
+      console.log('取消交易，返回手牌选择');
+      // 将卡牌放回玩家手中
+      player.hand.push(this);
+      return false; // 返回false表示需要重新选择手牌
     }
 
     if (action === 'B') {
       const maxQty = Math.floor(player.cash / game.stockPrices[this.stockName]);
-      const qty = parseInt(await game.askForInput(
-        `最多可买${maxQty}股，输入购买数量: `
-      ));
-      player.buyStock(this.stockName, qty, game.stockPrices[this.stockName]);
-    } else if (action === 'S') {
-      console.log('警告：卖空操作可能导致无限亏损！');
-      const heldQty = player.stocks[this.stockName] || 0;
-      const qty = parseInt(await game.askForInput(
-        `当前持仓${heldQty}股（输入卖出数量，可超过持仓进行卖空）: `
-      ));
-      if (isNaN(qty)) {
-        console.log('无效数量');
-        return;
+      const qty = await game.askForNumber(
+        `最多可买${maxQty}股，输入购买数量:`,
+        Math.min(100, maxQty)
+      );
+      
+      if (qty <= 0) {
+        console.log('取消购买，返回手牌选择');
+        player.hand.push(this);
+        return false;
       }
-      player.sellStock(this.stockName, qty, game.stockPrices[this.stockName]); // 需要实现sellStock方法
+      
+      if (player.buyStock(this.stockName, qty, game.stockPrices[this.stockName])) {
+        console.log(`${player.name} 成功购买 ${qty} 股 ${this.stockName}`);
+      } else {
+        console.log(`${player.name} 现金不足，无法购买`);
+        // 交易失败也返回手牌选择
+        player.hand.push(this);
+        return false;
+      }
+    } else if (action === 'S') {
+      const heldQty = player.stocks[this.stockName] || 0;
+      
+      // 提示卖空风险
+      if (heldQty <= 0) {
+        const confirmed = await game.askForConfirmation('警告：卖空操作可能导致无限亏损！是否继续?');
+        if (!confirmed) {
+          console.log('取消卖出，返回手牌选择');
+          player.hand.push(this);
+          return false;
+        }
+      }
+      
+      const qty = await game.askForNumber(
+        `当前持仓${heldQty}股（输入卖出数量，可超过持仓进行卖空）:`,
+        heldQty > 0 ? heldQty : 100
+      );
+      
+      if (qty <= 0) {
+        console.log('取消卖出，返回手牌选择');
+        player.hand.push(this);
+        return false;
+      }
+      
+      player.sellStock(this.stockName, qty, game.stockPrices[this.stockName]);
+      console.log(`${player.name} 成功卖出 ${qty} 股 ${this.stockName}`);
     }
+    
+    return true; // 交易完成
   }
 }
 
 class EventCard extends BaseCard {
   // 事件卡的效果实现需要根据具体需求来实现
+  async applyEffect(player, game) {
+    console.log(`触发事件: ${this.description}`);
+    // 根据事件类型实现具体效果
+  }
 }
 
 class DisasterCard extends BaseCard {
@@ -118,6 +165,7 @@ class DisasterCard extends BaseCard {
   }
 
   async applyEffect(player, game) {
+    console.log(`触发天灾: ${this.description}`);
     // 实现天灾卡效果...
   }
 }
