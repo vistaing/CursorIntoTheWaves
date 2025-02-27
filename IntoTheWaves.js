@@ -20,6 +20,14 @@ const formatNumber = (num, decimals = 0) => {
            .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+// 添加股票类别波动率范围定义
+const VOLATILITY_RANGES = {
+  "初创": { min: 0.3, max: 0.4 },   // 高风险高波动
+  "成长": { min: 0.1, max: 0.3 },  // 中高波动
+  "成熟": { min: -0.1, max: 0.1 }, // 中低波动
+  "衰退": { min: 0.05, max: 0.2 }    // 低波动但有不确定性
+};
+
 class Card {
   constructor(name) {
     this.name = name;
@@ -52,7 +60,38 @@ class Stock {
     this.name = name;
     this.tags = tags;
     this.price = this.generateInitialPrice();
-    this.volatility = 0.3; // 添加波动率参数
+    
+    // 根据标签确定波动率范围并随机生成初始波动率
+    this.volatilityRange = this.determineVolatilityRange();
+    this.volatility = this.generateInitialVolatility();
+  }
+
+  /**
+   * 根据股票标签确定波动率范围
+   * @returns {Object} 包含min和max的波动率范围对象
+   */
+  determineVolatilityRange() {
+    // 默认范围
+    let range = { min: 0.2, max: 0.4 };
+    
+    // 检查股票是否属于特定类别
+    for (const tag of this.tags) {
+      if (VOLATILITY_RANGES[tag]) {
+        range = VOLATILITY_RANGES[tag];
+        break; // 优先使用找到的第一个类别范围
+      }
+    }
+    
+    return range;
+  }
+  
+  /**
+   * 在股票的波动率范围内随机生成初始波动率
+   * @returns {number} 初始波动率
+   */
+  generateInitialVolatility() {
+    const { min, max } = this.volatilityRange;
+    return min + Math.random() * (max - min);
   }
 
   generateInitialPrice() {
@@ -92,21 +131,23 @@ class Stock {
   }
 
   /**
-   * 根据股票标签调整波动率
-   * - 成长股：波动率 ×1.5
-   * - 衰退股：波动率 ×0.8
-   * - 初创公司：波动率 ×2.0
-   * - 成熟企业：波动率 ×0.7
-   * 波动率范围限制在0.1-0.5之间
+   * 根据股票标签调整波动率，但保持在股票类别的合理范围内
    */
   adjustVolatilityByTags() {
     let volatilityModifier = 1.0;
-    if (this.tags.includes("成长")) volatilityModifier *= 1.5;
-    if (this.tags.includes("衰退")) volatilityModifier *= 0.8;
-    if (this.tags.includes("初创")) volatilityModifier *= 2.0;
-    if (this.tags.includes("成熟")) volatilityModifier *= 0.7;
     
-    this.volatility = Math.min(Math.max(0.1, 0.3 * volatilityModifier), 0.5);
+    // 应用标签修饰符
+    if (this.tags.includes("成长")) volatilityModifier *= 1.2;
+    if (this.tags.includes("衰退")) volatilityModifier *= 0.9;
+    if (this.tags.includes("初创")) volatilityModifier *= 1.3;
+    if (this.tags.includes("成熟")) volatilityModifier *= 0.8;
+    
+    // 计算新的波动率
+    let newVolatility = this.volatility * volatilityModifier;
+    
+    // 确保波动率保持在该股票类别的范围内
+    const { min, max } = this.volatilityRange;
+    this.volatility = Math.min(Math.max(min, newVolatility), max);
   }
 
   // 在Stock类中添加测试方法
@@ -222,10 +263,11 @@ class IntoTheWaves {
         '\x1b[37m股票名称\x1b[0m',
         '\x1b[37m当前价格\x1b[0m',
         '\x1b[37m涨跌幅\x1b[0m',
-        '\x1b[37m波动率\x1b[0m'
+        '\x1b[37m波动率\x1b[0m',
+        '\x1b[37m类别\x1b[0m'
       ],
-      colWidths: [16, 12, 12, 12],
-      colAligns: ['left', 'right', 'right', 'right'],
+      colWidths: [16, 12, 12, 12, 16],
+      colAligns: ['left', 'right', 'right', 'right', 'left'],
       style: { 
         'padding-left': 1,
         'padding-right': 1,
@@ -248,11 +290,17 @@ class IntoTheWaves {
       const changeColor = changeSymbol === '↑' ? COLORS.Green : 
                         changeSymbol === '↓' ? COLORS.Red : COLORS.Reset;
       
+      // 获取股票类别
+      const category = stock.tags.find(tag => 
+        ["初创", "成长", "成熟", "衰退"].includes(tag)
+      ) || "未分类";
+      
       table.push([
         stock.name,
         formatNumber(currentPrice, 2),
         `${changeColor}${changeSymbol}${Math.abs(changePercent)}%${COLORS.Reset}`,
-        `${Math.round(stock.volatility*100)}%`
+        `${Math.round(stock.volatility*100)}%`,
+        category
       ]);
     });
     console.log(table.toString());
