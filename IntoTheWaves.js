@@ -6,6 +6,7 @@ const { createCardInstance } = require('./src/CardFactory');
 const Player = require('./Player');  // 添加导入语句
 const Table = require('cli-table3');
 const inquirer = require('inquirer'); // 添加inquirer依赖
+const StockLoader = require('./src/StockLoader');
 
 // 在类顶部添加颜色常量
 const COLORS = {
@@ -78,7 +79,7 @@ class Stock {
     // 默认范围
     let range = { min: 0.2, max: 0.4 };
     
-    // 检查股票是否属于特定类别
+    // 现在需要专门检查stage标签(成长阶段)
     for (const tag of this.tags) {
       if (VOLATILITY_RANGES[tag]) {
         range = VOLATILITY_RANGES[tag];
@@ -140,7 +141,7 @@ class Stock {
   adjustVolatilityByTags() {
     let volatilityModifier = 1.0;
     
-    // 应用标签修饰符
+    // 应用标签修饰符，现在明确检查stage标签
     if (this.tags.includes("成长")) volatilityModifier *= 1.2;
     if (this.tags.includes("衰退")) volatilityModifier *= 0.9;
     if (this.tags.includes("初创")) volatilityModifier *= 1.3;
@@ -174,7 +175,7 @@ const readline = require('readline');
 
 class IntoTheWaves {
   async initialize() {
-    this.allStocks = this.initializeAllStocks();
+    this.allStocks = await this.initializeAllStocks();
     this.activeStocks = this.selectRandomStocks(6);
     this.stockPrices = this.initializeStockPrices();
     this.previousStockPrices = {...this.stockPrices};
@@ -197,6 +198,11 @@ class IntoTheWaves {
     if (!baseCards.length) throw new Error('基础卡牌配置加载失败');
     
     // 生成股票交易卡
+    console.log(`活跃股票数量: ${this.activeStocks.length}`);
+    if (this.activeStocks.length > 0) {
+      console.log('活跃股票示例:', this.activeStocks[0]);
+    }
+    
     const stockCards = this.activeStocks.flatMap(stock => {
       return Array(5).fill().map(() => ({
         name: `${stock.name}交易卡`,
@@ -208,6 +214,8 @@ class IntoTheWaves {
         tags: ['股票交易', ...stock.tags]
       }));
     });
+    
+    console.log(`生成的股票卡数量: ${stockCards.length}`);
     if (!stockCards.length) throw new Error('股票卡生成失败');
     
     return this.shuffleDeck([...baseCards, ...stockCards].map(config => createCardInstance(config)));
@@ -228,29 +236,22 @@ class IntoTheWaves {
     }
   }
 
-  initializeAllStocks() {
-    return [
-      new Stock("英伟达", ["半导体", "消费电子", "成长", "北美洲"]),
-      new Stock("西方石油", ["石油", "成熟", "北美洲"]),
-      new Stock("宁德时代", ["光伏", "电池", "汽车", "成熟", "亚洲"]),
-      new Stock("墨氏烧烤", ["食品", "成长", "北美洲"]),
-      new Stock("贵州茅台", ["酒", "衰退", "亚洲"]),
-      new Stock("欧莱雅", ["美妆", "成熟", "欧洲"]),
-      new Stock("万科", ["房地产", "衰退", "亚洲"]),
-      new Stock("波音", ["运输", "成熟", "北美洲"]),
-      new Stock("苹果", ["半导体", "消费电子", "成熟", "北美洲"]),
-      new Stock("辉瑞", ["医药", "成熟", "北美洲"]),
-      new Stock("特斯拉", ["汽车", "电池", "消费电子", "成长", "北美洲"]),
-      new Stock("法拉第未来", ["汽车", "初创", "北美洲"]),
-      new Stock("温氏股份", ["养殖", "成熟", "亚洲"]),
-      new Stock("阿斯麦", ["半导体", "成熟", "欧洲"]),
-      new Stock("山东黄金", ["贵金属", "成熟", "亚洲"])
-    ];
+  async initializeAllStocks() {
+    const stocksData = await StockLoader.loadStocksFromCSV('./data/stocks.csv');
+    console.log(`加载到${stocksData.length}只股票`);
+    // 打印一个股票示例看看结构
+    if (stocksData.length > 0) {
+      console.log('股票数据示例:', stocksData[0]);
+    }
+    return stocksData.map(data => new Stock(data.name, data.tags));
   }
 
   selectRandomStocks(count) {
+    console.log(`全部股票数量: ${this.allStocks.length}`);
     const shuffled = [...this.allStocks].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 6); // 固定选择6只股票
+    const selected = shuffled.slice(0, count);
+    console.log(`选择了${selected.length}只股票`);
+    return selected;
   }
 
   initializeStockPrices() {
